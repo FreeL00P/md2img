@@ -396,15 +396,6 @@ export default function Editor() {
     const newTheme = themes.find(t => t.value === value)
     if (newTheme) {
       setCurrentTheme(newTheme)
-      // 更新 Markdown 渲染主题
-      const previewElements = document.querySelectorAll('.markdown-preview')
-      previewElements.forEach(element => {
-        element.setAttribute('data-theme', newTheme.markdownTheme)
-        // 强制重新渲染
-        element.classList.remove('markdown-preview')
-        element.offsetHeight // 触发重排
-        element.classList.add('markdown-preview')
-      })
     }
   }
 
@@ -503,11 +494,10 @@ export default function Editor() {
     }
   };
 
-  const Preview = React.memo(({ content, index, total, theme }: { 
+  const Preview = React.memo(({ content, index, total }: { 
     content: string, 
     index?: number, 
-    total?: number,
-    theme: ThemeType
+    total?: number 
   }) => {
     const previewRef = useRef<HTMLDivElement>(null);
 
@@ -526,7 +516,7 @@ export default function Editor() {
       <div className="page-content relative group w-full mb-8">
         <div ref={previewRef}>
           <Md2Poster 
-            theme={theme}
+            theme={currentTheme.markdownTheme}
             copySuccessCallback={copySuccessCallback}
             className={`
               ${currentTheme.value.includes("Dark") ? "prose-invert" : ""}
@@ -738,13 +728,12 @@ export default function Editor() {
                           content={pageContent} 
                           index={index} 
                           total={pages.length}
-                          theme={currentTheme.markdownTheme as ThemeType}
                         />
                       ));
                     })()
                   ) : (
                     <div className={currentTheme.background}>
-                      <Preview content={mdString} theme={currentTheme.markdownTheme as ThemeType} />
+                      <Preview content={mdString} />
                     </div>
                   )}
                 </div>
