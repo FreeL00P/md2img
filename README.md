@@ -1,4 +1,4 @@
-This is a modified example of [gcui-art/markdown-to-image](https://github.com/gcui-art/markdown-to-image) with build fixes.
+This is a modified of [gcui-art/markdown-to-image](https://github.com/gcui-art/markdown-to-image) 
 The original work is licensed under the Apache License 2.0.
 ## Quick Start
 1. Fork this repository
