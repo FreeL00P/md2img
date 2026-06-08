@@ -1,4 +1,16 @@
-export const editorTheme = {
+type EditorTheme = {
+  base: 'vs' | 'vs-dark' | 'hc-black' | 'hc-light';
+  inherit: boolean;
+  rules: Array<{
+    token: string;
+    foreground?: string;
+    background?: string;
+    fontStyle?: string;
+  }>;
+  colors: Record<string, string>;
+};
+
+export const editorTheme: EditorTheme = {
   base: 'vs',
   inherit: true,
   rules: [
@@ -6,7 +18,7 @@ export const editorTheme = {
     { token: 'bold', foreground: '1e40af', fontStyle: 'bold' },
     { token: 'italic', foreground: '1e40af', fontStyle: 'italic' },
     { token: 'code', foreground: '047857', background: 'f1f5f9' },
-    { token: 'link', foreground: '1e40af', textDecoration: 'underline' },
+    { token: 'link', foreground: '1e40af', fontStyle: 'underline' },
     { token: 'list', foreground: '334155', fontStyle: 'bold' },
     { token: 'quote', foreground: '475569', fontStyle: 'italic' },
     { token: 'comment', foreground: '64748b', fontStyle: 'italic' },

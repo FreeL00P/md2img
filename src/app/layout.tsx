@@ -9,10 +9,10 @@ import 'markdown-to-image/dist/style.css'
 import { Analytics } from "@vercel/analytics/react"
 
 export const metadata: Metadata = {
-  title: "markdown to poster image",
+  title: "md2img - Markdown to Poster Image",
   description: "Render Markdown into a beautiful poster image, with support for copying as an image. Md to Poster/Image/Quote/Card/Instagram/Twitter/Facebook...",
   keywords: ["poster image", "海报", "卡片", "图片", "markdown", "ai", "markdown to poster", "markdown to image", "markdown to card", "markdown to quote", "instagram", "twitter", "facebook"],
-  creator: "gcui.ai",
+  creator: "md2img",
 };
 
 export default function RootLayout({

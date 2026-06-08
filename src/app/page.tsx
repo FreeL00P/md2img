@@ -7,12 +7,6 @@ const Editor = dynamic(() => import('@/components/Editor'), {
 })
 export default function Home() {
   return (
-    <div>
-      <Section className='relative'><Editor /></Section>
-      <Section className="py-4">
-        <article className="prose lg:prose-xl">
-        </article>
-      </Section>
-    </div>
+    <Section className='relative'><Editor /></Section>
   )
 }

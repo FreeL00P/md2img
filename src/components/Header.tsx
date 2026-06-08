@@ -1,6 +1,4 @@
 import Link from 'next/link'
-import Image from 'next/image'
-
 export default function Header() {
   return (
     <nav
@@ -10,7 +8,7 @@ export default function Header() {
       <div className="max-w-6xl flex w-full items-center justify-between">
         <div className="font-medium text-xl text-indigo-900 flex items-center gap-2">
           {/* <div>logo</div> */}
-          <Link href="/">markdown-to-image</Link>
+          <Link href="/">md2img</Link>
         </div>
         <div className="flex items-center justify-center gap-1 text-sm font-light text-indigo-900/90">
           <p

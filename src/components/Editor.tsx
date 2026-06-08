@@ -1,9 +1,7 @@
 'use client';
 import React, { useState, ChangeEvent, TextareaHTMLAttributes, useRef, useCallback } from 'react'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { Button } from './ui/button'
-import { Md2PosterContent, Md2Poster } from 'markdown-to-image'
-import { Copy, LoaderCircle, Download, Languages } from 'lucide-react';
+import { Languages } from 'lucide-react';
 import {
   Select,
   SelectContent,
@@ -11,92 +9,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import html2canvas from 'html2canvas';
 import { Slider } from "@/components/ui/slider"
 import { Editor as MonacoEditor } from '@monaco-editor/react';
+import type { OnMount } from '@monaco-editor/react';
 import { editorTheme } from '@/lib/editor-theme';
 import { useLanguage } from '@/lib/language-context'
+import { splitMarkdown, themes, type AspectRatio, type RenderMode, type Theme } from '@/lib/poster-options'
+import { copyElementAsPng, downloadElementAsPng } from '@/lib/image-export'
+import PosterPreview from './PosterPreview'
 
-type ThemeType = 'blue' | 'pink' | 'purple' | 'green' | 'yellow' | 'gray' | 'red' | 'indigo' | 'SpringGradientWave';
-
-interface ThemeConfig {
-  value: string;
-  label: string;
-  background: string;
-  markdownTheme: ThemeType;
-}
-
-const themes: ThemeConfig[] = [
-  {
-    value: "SpringGradientWave",
-    label: "SpringGradientWave",
-    background: "bg-gradient-to-br from-green-50 to-blue-50",
-    markdownTheme: "SpringGradientWave"
-  },
-  {
-    value: "SummerSunset",
-    label: "SummerSunset",
-    background: "bg-gradient-to-br from-orange-50 to-pink-50",
-    markdownTheme: "pink"
-  },
-  {
-    value: "AutumnWarmth",
-    label: "AutumnWarmth",
-    background: "bg-gradient-to-br from-yellow-50 to-orange-50",
-    markdownTheme: "yellow"
-  },
-  {
-    value: "WinterFrost",
-    label: "WinterFrost",
-    background: "bg-gradient-to-br from-blue-50 to-indigo-50",
-    markdownTheme: "blue"
-  },
-  {
-    value: "DarkGradientWave",
-    label: "DarkGradientWave",
-    background: "bg-gradient-to-br from-gray-900 to-gray-800",
-    markdownTheme: "gray"
-  },
-  {
-    value: "PurpleNight",
-    label: "PurpleNight",
-    background: "bg-gradient-to-br from-purple-900 to-indigo-900",
-    markdownTheme: "purple"
-  },
-  {
-    value: "SimpleLight",
-    label: "SimpleLight",
-    background: "bg-white",
-    markdownTheme: "indigo"
-  },
-  {
-    value: "SimpleDark",
-    label: "SimpleDark", 
-    background: "bg-gray-900",
-    markdownTheme: "gray"
-  },
-  {
-    value: "GithubLight",
-    label: "GithubLight",
-    background: "bg-[#ffffff]",
-    markdownTheme: "indigo"
-  },
-  {
-    value: "GithubDark",
-    label: "GithubDark",
-    background: "bg-[#0d1117]",
-    markdownTheme: "gray"
-  }
-] as const;
-
-type Theme = typeof themes[number];
-
-type RenderMode = 'long' | 'auto-pagination' | 'manual-pagination';
-
-// 修改比例类型定义
-type AspectRatio = '4:3' | '16:9' | 'auto';
-
-const Textarea: React.FC<TextareaHTMLAttributes<HTMLTextAreaElement>> = ({ onChange, value, ...rest }) => {
+const Textarea: React.FC<TextareaHTMLAttributes<HTMLTextAreaElement>> = ({ onChange, value, defaultValue }) => {
   const handleEditorChange = (value: string | undefined) => {
     if (onChange && value !== undefined) {
       const event = {
@@ -106,7 +28,7 @@ const Textarea: React.FC<TextareaHTMLAttributes<HTMLTextAreaElement>> = ({ onCha
     }
   };
 
-  const handleEditorDidMount = useCallback((editor: any, monaco: any) => {
+  const handleEditorDidMount = useCallback<OnMount>((editor, monaco) => {
     // 注册自定义主题
     monaco.editor.defineTheme('markdown-light', editorTheme);
     monaco.editor.setTheme('markdown-light');
@@ -118,10 +40,6 @@ const Textarea: React.FC<TextareaHTMLAttributes<HTMLTextAreaElement>> = ({ onCha
       foldingHighlight: true,
       foldingImportsByDefault: true,
       showFoldingControls: 'always',
-      foldingRanges: {
-        start: /^#+\s+|\s*```/,
-        end: /^#+\s+|\s*```/
-      },
       lineDecorationsWidth: 20,
       lineNumbersMinChars: 3,
       glyphMargin: true,
@@ -182,7 +100,7 @@ const Textarea: React.FC<TextareaHTMLAttributes<HTMLTextAreaElement>> = ({ onCha
       suggestOnTriggerCharacters: true,
       acceptSuggestionOnEnter: 'on',
       tabCompletion: 'on',
-      wordBasedSuggestions: true,
+      wordBasedSuggestions: 'currentDocument',
       parameterHints: {
         enabled: true
       }
@@ -223,10 +141,10 @@ const Textarea: React.FC<TextareaHTMLAttributes<HTMLTextAreaElement>> = ({ onCha
 
   return (
     <div className="w-full h-full">
-      <MonacoEditor
-        height="100%"
-        defaultLanguage="markdown"
-        value={value as string}
+        <MonacoEditor
+          height="100%"
+          defaultLanguage="markdown"
+        value={(value ?? defaultValue ?? '') as string}
         onChange={handleEditorChange}
         theme="markdown-light"
         onMount={handleEditorDidMount}
@@ -316,38 +234,31 @@ export default function Editor() {
   const handleChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
     setMdString(e.target.value)
   }
-  const markdownRef = useRef<any>(null)
   const [copyLoading, setCopyLoading] = useState(false)
   const [downloadLoading, setDownloadLoading] = useState(false)
+  const [message, setMessage] = useState('')
   const containerRef = useRef<HTMLDivElement>(null);
+
+  const showMessage = (text: string) => {
+    setMessage(text);
+    window.setTimeout(() => setMessage(''), 3000);
+  };
+
+  const getExportErrorMessage = (err: unknown) => {
+    const reason = err instanceof Error ? err.message : String(err);
+    return `${t('exportFailed')} ${t('crossOriginTip')} ${reason ? `(${reason})` : ''}`;
+  };
+
+  const getExportBackgroundColor = () => currentTheme.value.includes("Dark") ? '#1a1a1a' : '#ffffff';
 
   const handleCopyFromChild = async (container: HTMLElement) => {
     setCopyLoading(true);
     try {
-      const canvas = await html2canvas(container, {
-        backgroundColor: currentTheme.value.includes("Dark") ? '#1a1a1a' : '#ffffff',
-        scale: 2,
-        useCORS: true,
-        allowTaint: true,
-        logging: false,
-      });
-
-      const blob = await new Promise<Blob>((resolve) => {
-        canvas.toBlob((blob) => {
-          resolve(blob as Blob);
-        }, 'image/png', 1.0);
-      });
-
-      await navigator.clipboard.write([
-        new ClipboardItem({
-          'image/png': blob
-        })
-      ]);
-
-      alert('复制成功!');
+      await copyElementAsPng(container, getExportBackgroundColor());
+      showMessage(t('copySuccess'));
     } catch (err) {
       console.error('复制出错', err);
-      alert('复制失败，请稍后重试');
+      showMessage(getExportErrorMessage(err));
     }
     setCopyLoading(false);
   };
@@ -355,41 +266,16 @@ export default function Editor() {
   const handleDownload = async (container: HTMLElement) => {
     setDownloadLoading(true);
     try {
-      const wrapper = document.createElement('div');
-      wrapper.style.position = 'fixed';
-      wrapper.style.left = '-9999px';
-      wrapper.style.top = '0';
-      wrapper.style.padding = '24px';
-      wrapper.style.backgroundColor = currentTheme.value.includes("Dark") ? '#1a1a1a' : '#ffffff';
-      
-      const clone = container.cloneNode(true) as HTMLElement;
-      wrapper.appendChild(clone);
-      document.body.appendChild(wrapper);
-
-      try {
-        const canvas = await html2canvas(wrapper, {
-          scale: 2,
-          useCORS: true,
-          allowTaint: true,
-          logging: false,
-        });
-
-        const link = document.createElement('a');
-        link.download = 'markdown-poster.png';
-        link.href = canvas.toDataURL('image/png', 1.0);
-        link.click();
-      } finally {
-        document.body.removeChild(wrapper);
-      }
+      await downloadElementAsPng(container, 'markdown-poster.png', getExportBackgroundColor());
     } catch (err) {
       console.error('下载出错', err);
-      alert('下载失败，请稍后重试');
+      showMessage(getExportErrorMessage(err));
     }
     setDownloadLoading(false);
   };
 
   const copySuccessCallback = () => {
-    console.log('复制成功回调')
+    showMessage(t('copySuccess'))
   }
 
   const handleThemeChange = (value: string) => {
@@ -397,42 +283,6 @@ export default function Editor() {
     if (newTheme) {
       setCurrentTheme(newTheme)
     }
-  }
-
-  const splitMarkdown = (markdown: string, mode: RenderMode): string[] => {
-    if (mode === 'manual-pagination') {
-      // 手动分页：按 --- 分割
-      return markdown
-        .split(/\n\-{3,}\n/)
-        .map(content => content.trim())
-        .filter(content => content.length > 0);
-    } else if (mode === 'auto-pagination') {
-      // 自动分页：按标题分割
-      const sections = markdown.split(/(?=^# )/gm);
-      
-      if (sections.length <= 1) {
-        // 如果没有标题，则按照固定数量的行数分割
-        const lines = markdown.split('\n');
-        const pagesCount = Math.ceil(lines.length / 10); // 每页10行
-        const pages: string[] = [];
-        
-        for (let i = 0; i < pagesCount; i++) {
-          const start = i * 10;
-          const end = start + 10;
-          const pageContent = lines.slice(start, end).join('\n');
-          if (pageContent.trim()) {
-            pages.push(pageContent);
-          }
-        }
-        
-        return pages;
-      }
-      
-      return sections.filter(section => section.trim());
-    }
-    
-    // 长图模式：返回整个内容
-    return [markdown];
   }
 
   const handleDownloadAll = async () => {
@@ -444,189 +294,28 @@ export default function Editor() {
         const container = containers[i] as HTMLElement;
         if (!container) continue;
 
-        const wrapper = document.createElement('div');
-        wrapper.style.position = 'fixed';
-        wrapper.style.left = '-9999px';
-        wrapper.style.top = '0';
-        wrapper.style.padding = '24px';
-        wrapper.style.backgroundColor = currentTheme.value.includes("Dark") ? '#1a1a1a' : '#ffffff';
-        
-        const clone = container.cloneNode(true) as HTMLElement;
-        wrapper.appendChild(clone);
-        document.body.appendChild(wrapper);
+        await downloadElementAsPng(container, `markdown-poster-${String(i + 1).padStart(2, '0')}.png`, getExportBackgroundColor());
 
-        try {
-          const canvas = await html2canvas(wrapper, {
-            scale: 2,
-            useCORS: true,
-            allowTaint: true,
-            logging: false,
-          });
-
-          const link = document.createElement('a');
-          link.download = `markdown-poster-${String(i + 1).padStart(2, '0')}.png`;
-          link.href = canvas.toDataURL('image/png', 1.0);
-          link.click();
-
-          // 添加延迟避免浏览器阻塞
-          await new Promise(resolve => setTimeout(resolve, 300));
-        } finally {
-          document.body.removeChild(wrapper);
-        }
+        // 添加延迟避免浏览器阻塞
+        await new Promise(resolve => setTimeout(resolve, 300));
       }
-      alert('所有图片下载完成!');
+      showMessage(t('downloadAllSuccess'));
     } catch (err) {
       console.error('下载出错', err);
-      alert('下载失败，请稍后重试');
+      showMessage(getExportErrorMessage(err));
     }
     setDownloadLoading(false);
   };
 
-  // 修改 getAspectRatioStyle 函数
-  const getAspectRatioStyle = (ratio: AspectRatio) => {
-    switch (ratio) {
-      case '4:3':
-        return 'aspect-[3/4]'; // 高:宽 = 4:3 转换为 宽:高 = 3:4
-      case '16:9':
-        return 'aspect-[9/16]'; // 高:宽 = 16:9 转换为 宽:高 = 9:16
-      default:
-        return ''; // 自适应模式不添加样式
-    }
-  };
-
-  const Preview = React.memo(({ content, index, total }: { 
-    content: string, 
-    index?: number, 
-    total?: number 
-  }) => {
-    const previewRef = useRef<HTMLDivElement>(null);
-
-    // 判断是否为最后一页
-    const isLastPage = total !== undefined && index === total - 1;
-
-    // 获取当前页面的比例样式
-    const getPageAspectStyle = () => {
-      if (renderMode === 'long' || aspectRatio === 'auto' || isLastPage) {
-        return '';
-      }
-      return getAspectRatioStyle(aspectRatio);
-    };
-
-    return (
-      <div className="page-content relative group w-full mb-8">
-        <div ref={previewRef}>
-          <Md2Poster 
-            theme={currentTheme.markdownTheme}
-            copySuccessCallback={copySuccessCallback}
-            className={`
-              ${currentTheme.value.includes("Dark") ? "prose-invert" : ""}
-              ${getPageAspectStyle()}
-              relative rounded-lg overflow-hidden ${currentTheme.background}
-              w-full
-              ${bgOpacity !== 100 ? `opacity-${bgOpacity}` : ''}
-            `}
-          >
-            <div className={`
-              w-full h-full flex flex-col
-              ${renderMode !== 'long' && aspectRatio !== 'auto' && !isLastPage ? 'justify-center' : ''}
-            `}>
-              <Md2PosterContent>{content}</Md2PosterContent>
-            </div>
-          </Md2Poster>
-        </div>
-        
-        {/* 悬浮按钮组 */}
-        <div className="absolute top-2 right-2 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-          {/* 复制按钮 */}
-          <Button 
-            variant="outline"
-            size="sm"
-            className={`
-              backdrop-blur-sm rounded-lg w-8 h-8 p-0
-              ${currentTheme.value.includes("Dark") 
-                ? "bg-gray-800/80 hover:bg-gray-800/90 text-white border-gray-700" 
-                : "bg-white/80 hover:bg-white/90 border-gray-200"}
-            `}
-            onClick={(e) => {
-              e.stopPropagation();
-              if (previewRef.current) {
-                handleCopyFromChild(previewRef.current);
-              }
-            }}
-            disabled={copyLoading}
-            title="复制图片"
-          >
-            {copyLoading ?
-              <LoaderCircle className="w-4 h-4 animate-spin" />
-              : <Copy className="w-4 h-4" />}
-          </Button>
-
-          {/* 下载按钮 */}
-          <Button 
-            variant="outline"
-            size="sm"
-            className={`
-              backdrop-blur-sm rounded-lg w-8 h-8 p-0
-              ${currentTheme.value.includes("Dark") 
-                ? "bg-gray-800/80 hover:bg-gray-800/90 text-white border-gray-700" 
-                : "bg-white/80 hover:bg-white/90 border-gray-200"}
-            `}
-            onClick={(e) => {
-              e.stopPropagation();
-              if (previewRef.current) {
-                handleDownload(previewRef.current);
-              }
-            }}
-            disabled={downloadLoading}
-            title="下载当前图片"
-          >
-            {downloadLoading ?
-              <LoaderCircle className="w-4 h-4 animate-spin" />
-              : <Download className="w-4 h-4" />}
-          </Button>
-
-          {/* 只在第一页显示下载全部按钮 */}
-          {(index === 0 && total && total > 1) && (
-            <Button 
-              variant="outline"
-              size="sm"
-              className={`
-                backdrop-blur-sm rounded-lg w-8 h-8 p-0
-                ${currentTheme.value.includes("Dark") 
-                  ? "bg-gray-800/80 hover:bg-gray-800/90 text-white border-gray-700" 
-                  : "bg-white/80 hover:bg-white/90 border-gray-200"}
-              `}
-              onClick={(e) => {
-                e.stopPropagation();
-                handleDownloadAll();
-              }}
-              disabled={downloadLoading}
-              title="下载全部图片"
-            >
-              {downloadLoading ?
-                <LoaderCircle className="w-4 h-4 animate-spin" />
-                : <div className="relative">
-                    <Download className="w-4 h-4" />
-                    <span className="absolute -top-1 -right-1 text-[10px] font-bold">*</span>
-                  </div>
-              }
-            </Button>
-          )}
-        </div>
-      </div>
-    );
-  });
-  Preview.displayName = 'Preview';
-
   return (
     <div className="flex flex-col w-full h-[calc(100vh-8rem)]">
       {/* 控制面板 */}
-      <div className="w-full border-b border-gray-200 pb-6 mt-8">
+      <div className="w-full border-b border-gray-200 pb-6 mt-8" aria-label="Editor controls">
         <div className="max-w-6xl mx-auto px-6 flex items-center gap-6">
           <div className="flex items-center gap-2">
             <span className="text-sm text-gray-500">{t('theme')}</span>
             <Select value={currentTheme.value} onValueChange={handleThemeChange}>
-              <SelectTrigger className="w-[180px]">
+              <SelectTrigger className="w-[160px] sm:w-[180px]">
                 <SelectValue placeholder={t('theme')} />
               </SelectTrigger>
               <SelectContent>
@@ -674,7 +363,7 @@ export default function Editor() {
           <div className="flex items-center gap-4">
             <span className="text-sm text-gray-500">{t('bgOpacity')}</span>
             <Slider
-              className="w-[200px]"
+              className="w-[140px] sm:w-[200px]"
               value={[bgOpacity]}
               onValueChange={(value) => setBgOpacity(value[0])}
               max={100}
@@ -688,53 +377,87 @@ export default function Editor() {
             variant="outline"
             size="icon"
             onClick={() => setLanguage(language === 'zh' ? 'en' : 'zh')}
-            className="ml-auto"
+            className="sm:ml-auto"
           >
             <Languages className="h-4 w-4" />
           </Button>
         </div>
       </div>
 
+      {message && (
+        <div className="max-w-6xl w-full mx-auto px-6 pt-3">
+          <div className="rounded-md border border-indigo-200 bg-indigo-50 px-4 py-2 text-sm text-indigo-900">
+            {message}
+          </div>
+        </div>
+      )}
+
       {/* 编辑器主体 */}
       <div className="flex-1 min-h-0">
-        <div className="h-full w-full border-2 border-gray-900 rounded-xl mx-6 overflow-hidden">
+        <div className="h-full w-full border-2 border-gray-900 rounded-xl overflow-hidden bg-white">
           <div className="flex flex-row h-full">
             {/* 编辑器区域 */}
-            <div className="w-1/2 h-full border-r border-gray-200">
+            <div className="w-1/2 h-full border-r border-gray-200" aria-label="Markdown editor">
               <div className="h-full">
-                <Textarea 
+                <Textarea
                   placeholder={t('placeholder')}
-                  onChange={handleChange} 
-                  defaultValue={mdString}
+                  onChange={handleChange}
+                  value={mdString}
                   spellCheck={false}
                   className="h-full w-full resize-none focus:outline-none p-6 rounded-l-xl"
                 />
               </div>
             </div>
-            
+
             {/* 预览区域 */}
-            <div className="w-1/2 h-full overflow-y-auto">
+            <div className="w-1/2 h-full overflow-y-auto" aria-label="Poster preview">
               <div className="p-6">
-                <div 
+                <div
                   ref={containerRef}
                   className="w-full"
                 >
                   {renderMode !== 'long' ? (
                     (() => {
                       const pages = splitMarkdown(mdString, renderMode);
-                      return pages.map((pageContent, index) => (
-                        <Preview 
+                      return pages.length > 0 ? pages.map((pageContent, index) => (
+                        <PosterPreview 
                           key={index}
                           content={pageContent} 
+                          currentTheme={currentTheme}
+                          renderMode={renderMode}
+                          aspectRatio={aspectRatio}
+                          bgOpacity={bgOpacity}
+                          copyLoading={copyLoading}
+                          downloadLoading={downloadLoading}
+                          copyLabel={t('copy')}
+                          downloadLabel={t('download')}
+                          downloadAllLabel={t('downloadAll')}
                           index={index} 
                           total={pages.length}
+                          onCopy={handleCopyFromChild}
+                          onDownload={handleDownload}
+                          onDownloadAll={handleDownloadAll}
+                          onCopySuccess={copySuccessCallback}
                         />
-                      ));
+                      )) : <p className="text-sm text-gray-500">{t('emptyPreview')}</p>;
                     })()
                   ) : (
-                    <div className={currentTheme.background}>
-                      <Preview content={mdString} />
-                    </div>
+                    <PosterPreview
+                      content={mdString}
+                      currentTheme={currentTheme}
+                      renderMode={renderMode}
+                      aspectRatio={aspectRatio}
+                      bgOpacity={bgOpacity}
+                      copyLoading={copyLoading}
+                      downloadLoading={downloadLoading}
+                      copyLabel={t('copy')}
+                      downloadLabel={t('download')}
+                      downloadAllLabel={t('downloadAll')}
+                      onCopy={handleCopyFromChild}
+                      onDownload={handleDownload}
+                      onDownloadAll={handleDownloadAll}
+                      onCopySuccess={copySuccessCallback}
+                    />
                   )}
                 </div>
               </div>
